@@ -1,99 +1,55 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Override-values for invariants. These should be customized by users.
-#export SSH_AGENT_CANON_ENV_DIR="/var/tmp/ssh-agent-canonicalize"
-#export SSH_AGENT_CANON_ENV_BASE="env.source"
+# Override default location of env file.
+#export SSH_AGENT_CANON_ENV_FILE="${XDG_RUNTIME_DIR:-"/tmp/user/$(id --user)"}/ssh-agent-canonicalize/env.source"
+# Default location of env file.
+SSH_AGENT_CANON_DEFAULT_ENV_FILE="${XDG_RUNTIME_DIR:-"/tmp/user/$(id --user)"}/ssh-agent-canonicalize/env.source"
 
-# Default-values for invariants. These should not be modified.
-export SSH_AGENT_CANON_DEFAULT_ENV_DIR="/var/tmp/ssh-agent-canonicalize"
-export SSH_AGENT_CANON_DEFAULT_ENV_BASE="env.source"
+ENV_FILE="${SSH_AGENT_CANON_ENV_FILE:-"$SSH_AGENT_CANON_DEFAULT_ENV_FILE"}"
 
-function env_dir() {
-  echo "${SSH_AGENT_CANON_ENV_DIR:-"$SSH_AGENT_CANON_DEFAULT_ENV_DIR"}"
-}
-
-function env_file() {
-  local base
-  base="${SSH_AGENT_CANON_ENV_BASE:-"$SSH_AGENT_CANON_DEFAULT_ENV_BASE"}"
-  readonly base
-
-  echo "$(env_dir)/$base"
-}
-
-function get_canon_agent_pid() {
+function canon_agent_pid() {
   (
-    source "$(env_file)" >/dev/null
-    echo "${SSH_AGENT_PID:-}"
+    unset SSH_AGENT_PID
+    source "$ENV_FILE" >/dev/null
+    echo ${SSH_AGENT_PID:-}
   )
-  return 0
 }
 
-function get_agent_pids() {
-  pgrep ssh-agent
-  return 0
-}
-
-function get_non_canon_agent_pids() {
-  local canon_agent_pid all_agent_pids
-  canon_agent_pid="$(get_canon_agent_pid)"
-  all_agent_pids="$(get_agent_pids)"
-  readonly canon_agent_pid all_agent_pids
-
-  if [ -z "$canon_agent_pid" ]; then
-    echo "$all_agent_pids"
-  elif [ ! -z "$all_agent_pids" ] &&
-    [ "$all_agent_pids" != "$canon_agent_pid" ]; then
-    echo "$all_agent_pids" | grep -v "$canon_agent_pid"
-  fi
+function non_canon_agent_pids() {
+  echo $(pgrep ssh-agent) | sed -e "s#\b$(canon_agent_pid)\b##"
 }
 
 function is_canon_agent_running() {
-  local canon_agent_pid
-  canon_agent_pid="$(get_canon_agent_pid)"
-  readonly canon_agent_pid
-
-  if [ -z "$canon_agent_pid" ]; then
-    return 1
-  fi
-
-  ps -p "$canon_agent_pid" | grep -q ssh-agent
-  return "$?"
+  ps -p "$(canon_agent_pid)" 2>/dev/null | grep -q ssh-agent
 }
 
 function kill_non_canon_agents() {
-  local non_canon_agent_pids
-  non_canon_agent_pids="$(get_non_canon_agent_pids)"
-  readonly non_canon_agent_pids
-
-  if [ ! -z "$non_canon_agent_pids" ]; then
-    echo "$non_canon_agent_pids" | xargs kill
-  fi
+  non_canon_agent_pids | xargs --no-run-if-empty kill -TERM
 }
 
 function seed_agent() {
   (
-    source "$(env_file)" >/dev/null
+    source "$ENV_FILE" >/dev/null
     if ! ssh-add -l 2>&1 >/dev/null; then
       ssh-add
     fi
   )
-  return 0
 }
 
 function main() {
-  mkdir -p "$(env_dir)"
-  touch "$(env_file)"
+  mkdir -p "$(dirname "$ENV_FILE")"
+  touch "$ENV_FILE"
 
   kill_non_canon_agents
 
   if ! is_canon_agent_running; then
-    ssh-agent >"$(env_file)"
+    ssh-agent >"$ENV_FILE"
   fi
 
   seed_agent
 
-  cat "$(env_file)"
+  cat "$ENV_FILE"
 }
 
 main
