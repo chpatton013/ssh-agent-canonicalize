@@ -11,9 +11,13 @@ ENV_FILE="${SSH_AGENT_CANON_ENV_FILE:-"$SSH_AGENT_CANON_DEFAULT_ENV_FILE"}"
 function canon_agent_pid() {
   # Contain changes to shell state in a subshell.
   (
-    unset SSH_AGENT_PID
+    unset SSH_AGENT_PID SSH_AUTH_SOCK
     source "$ENV_FILE" >/dev/null
-    echo ${SSH_AGENT_PID:-}
+    # If the auth socket file is gone then the agent is unreachable. Even if it
+    # was canonical at some point, there's no reason to keep it around any more.
+    if [ -S "$SSH_AUTH_SOCK" ]; then
+      echo ${SSH_AGENT_PID:-}
+    fi
   )
 }
 
