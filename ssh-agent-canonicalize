@@ -9,6 +9,7 @@ SSH_AGENT_CANON_DEFAULT_ENV_FILE="${XDG_RUNTIME_DIR:-"/tmp/user/$(id --user)"}/s
 ENV_FILE="${SSH_AGENT_CANON_ENV_FILE:-"$SSH_AGENT_CANON_DEFAULT_ENV_FILE"}"
 
 function canon_agent_pid() {
+  # Contain changes to shell state in a subshell.
   (
     unset SSH_AGENT_PID
     source "$ENV_FILE" >/dev/null
@@ -29,6 +30,7 @@ function kill_non_canon_agents() {
 }
 
 function seed_agent() {
+  # Contain changes to shell state in a subshell.
   (
     source "$ENV_FILE" >/dev/null
     if ! ssh-add -l 2>&1 >/dev/null; then
@@ -37,18 +39,26 @@ function seed_agent() {
   )
 }
 
-function main() {
+function canonicalize_ssh_agent() {
+  # Ensure that we can create the env file before modifying any system state.
   mkdir -p "$(dirname "$ENV_FILE")"
   touch "$ENV_FILE"
 
+  # Ensure that only the canonical instance of ssh-agent is running.
   kill_non_canon_agents
-
   if ! is_canon_agent_running; then
     ssh-agent >"$ENV_FILE"
   fi
 
+  # Add default keys to the canonical instance of ssh-agent.
   seed_agent
+}
 
+function main() {
+  # Redirect any output to stderr so stdout can always be safely eval'd.
+  canonicalize_ssh_agent >&2
+
+  # Write the canonical agent configuration to stdout.
   cat "$ENV_FILE"
 }
 
