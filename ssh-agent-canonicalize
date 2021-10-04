@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Get userid and xargs option on MacOS
+# Get userid on MacOS
 if [[ $OSTYPE == 'darwin'* ]]; then
   userid="$(id -u)"
   notifempty="-r"
@@ -33,7 +33,7 @@ function canon_agent_pid() {
 }
 
 function non_canon_agent_pids() {
-  echo $(pgrep ssh-agent) | sed -e "s#$(canon_agent_pid)##"
+  echo $(pgrep ssh-agent) | sed -e "s#\b$(canon_agent_pid)\b##"
 }
 
 function is_canon_agent_running() {
