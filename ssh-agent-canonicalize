@@ -31,7 +31,7 @@ function canon_agent_pid() {
 }
 
 function non_canon_agent_pids() {
-  echo $( echo $( pgrep ssh-agent | grep -v "^$(canon_agent_pid)$" ) )
+  echo $( pgrep ssh-agent | grep -v "^$(canon_agent_pid)$" )
 }
 
 function is_canon_agent_running() {
