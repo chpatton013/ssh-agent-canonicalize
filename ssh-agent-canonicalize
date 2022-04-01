@@ -1,10 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Override default location of env file.
-#export SSH_AGENT_CANON_ENV_FILE="${XDG_RUNTIME_DIR:-"/tmp/user/$(id --user)"}/ssh-agent-canonicalize/env.source"
 # Default location of env file.
-SSH_AGENT_CANON_DEFAULT_ENV_FILE="${XDG_RUNTIME_DIR:-"/tmp/user/$(id --user)"}/ssh-agent-canonicalize/env.source"
+SSH_AGENT_CANON_DEFAULT_ENV_FILE="${XDG_RUNTIME_DIR:-"/tmp/user/$(id -u)"}/ssh-agent-canonicalize/env.source"
 
 ENV_FILE="${SSH_AGENT_CANON_ENV_FILE:-"$SSH_AGENT_CANON_DEFAULT_ENV_FILE"}"
 
@@ -15,14 +13,14 @@ function canon_agent_pid() {
     source "$ENV_FILE" >/dev/null
     # If the auth socket file is gone then the agent is unreachable. Even if it
     # was canonical at some point, there's no reason to keep it around any more.
-    if [ -S "$SSH_AUTH_SOCK" ]; then
+    if [[ -S "${SSH_AUTH_SOCK:-}" ]]; then
       echo ${SSH_AGENT_PID:-}
     fi
   )
 }
 
 function non_canon_agent_pids() {
-  echo $(pgrep ssh-agent) | sed -e "s#\b$(canon_agent_pid)\b##"
+  echo $(pgrep ssh-agent | grep -Ev "^$(canon_agent_pid)$")
 }
 
 function is_canon_agent_running() {
@@ -30,7 +28,7 @@ function is_canon_agent_running() {
 }
 
 function kill_non_canon_agents() {
-  non_canon_agent_pids | xargs --no-run-if-empty kill -TERM
+  non_canon_agent_pids | xargs -r kill -TERM
 }
 
 function seed_agent() {
