@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -x
 set -euo pipefail
 
 # Default location of env file.
@@ -20,7 +21,7 @@ function canon_agent_pid() {
 }
 
 function non_canon_agent_pids() {
-  pgrep ssh-agent | grep -Ev "^$(canon_agent_pid)$"
+  echo $(pgrep ssh-agent | grep -Ev "^$(canon_agent_pid)$")
 }
 
 function is_canon_agent_running() {
