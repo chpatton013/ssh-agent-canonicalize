@@ -1,19 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Get userid on MacOS
-if [[ $OSTYPE == 'darwin'* ]]; then
-  userid="$(id -u)"
-  notifempty="-r"
-else
-  userid="$(id --user)"
-  notifempty="--no-run-if-empty"
-fi
-
-# Override default location of env file.
-#export SSH_AGENT_CANON_ENV_FILE="${XDG_RUNTIME_DIR:-"/tmp/user/${userid}"}/ssh-agent-canonicalize/env.source"
 # Default location of env file.
-SSH_AGENT_CANON_DEFAULT_ENV_FILE="${XDG_RUNTIME_DIR:-"/tmp/user/${userid}"}/ssh-agent-canonicalize/env.source"
+SSH_AGENT_CANON_DEFAULT_ENV_FILE="${XDG_RUNTIME_DIR:-"/tmp/user/$(id -u)"}/ssh-agent-canonicalize/env.source"
 
 ENV_FILE="${SSH_AGENT_CANON_ENV_FILE:-"$SSH_AGENT_CANON_DEFAULT_ENV_FILE"}"
 
@@ -31,7 +20,7 @@ function canon_agent_pid() {
 }
 
 function non_canon_agent_pids() {
-  echo $( pgrep ssh-agent | grep -v "^$(canon_agent_pid)$" )
+  pgrep ssh-agent | grep -Ev "^$(canon_agent_pid)$"
 }
 
 function is_canon_agent_running() {
@@ -39,7 +28,7 @@ function is_canon_agent_running() {
 }
 
 function kill_non_canon_agents() {
-  non_canon_agent_pids | xargs $notifempty kill -TERM
+  non_canon_agent_pids | xargs -r kill -TERM
 }
 
 function seed_agent() {
