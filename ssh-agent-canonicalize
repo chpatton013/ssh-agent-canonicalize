@@ -5,6 +5,8 @@ set -euo pipefail
 SSH_AGENT_CANON_DEFAULT_ENV_FILE="${XDG_RUNTIME_DIR:-"/tmp/user/$(id -u)"}/ssh-agent-canonicalize/env.source"
 
 ENV_FILE="${SSH_AGENT_CANON_ENV_FILE:-"$SSH_AGENT_CANON_DEFAULT_ENV_FILE"}"
+SSH_CONFIG_DIR="$HOME/.ssh"
+DEFAULT_KEYS_FILE="$SSH_CONFIG_DIR/.ssh-agent-default-keys"
 
 function canon_agent_pid() {
   # Contain changes to shell state in a subshell.
@@ -32,17 +34,21 @@ function kill_non_canon_agents() {
 }
 
 function default_key_names() {
-  if [ -f ~/.ssh/.ssh-agent-default-keys ]; then
-    cat ~/.ssh/.ssh-agent-default-keys | awk -v HOME="$HOME" '{print HOME "/.ssh/" $0}'
+  if [ -f "$DEFAULT_KEYS_FILE" ]; then
+    cat "$DEFAULT_KEYS_FILE" | awk -v SSH="$SSH_CONFIG_DIR" '{print SSH "/" $0}'
   fi
 }
+
 
 function seed_agent() {
   # Contain changes to shell state in a subshell.
   (
     source "$ENV_FILE" >/dev/null
     if ! ssh-add -l 2>&1 >/dev/null; then
-      ssh-add $(default_key_names)
+      if ! ssh-add $(default_key_names); then
+        echo "Failed to add default SSH keys to agent! Create keys with a standard name ($SSH_CONFIG_DIR/id_<algorithm>), or populate the default-keys file ($DEFAULT_KEYS_FILE) with relative paths to custom keys." >&2
+        exit 1
+      fi
     fi
   )
 }
@@ -64,7 +70,10 @@ function canonicalize_ssh_agent() {
 
 function main() {
   # Redirect any output to stderr so stdout can always be safely eval'd.
-  canonicalize_ssh_agent >&2
+  if ! canonicalize_ssh_agent >&2; then
+    echo ssh-agent-canonicalize failed! >&2
+    exit 1
+  fi
 
   # Write the canonical agent configuration to stdout.
   cat "$ENV_FILE"
